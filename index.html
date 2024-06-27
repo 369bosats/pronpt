@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enchanted Realm of Prompts</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+</head>
+<body>
+    <div class="enchanted-realm">
+        <header class="crystal-castle">
+            <h1>Enchanted Realm of Prompts</h1>
+            <div id="user-level" class="level-indicator">
+                <span class="level">レベル 1</span>
+                <div class="exp-bar"><div class="exp-fill"></div></div>
+            </div>
+        </header>
+        <main class="realm-content">
+            <aside class="magic-tower">
+                <h2>魔法の種類</h2>
+                <ul id="genre-list" class="genre-scroll"></ul>
+                <input type="text" id="new-genre" placeholder="新しい魔法を追加">
+                <button id="add-genre" class="crystal-btn">追加</button>
+            </aside>
+            <section class="enchanted-forest">
+                <div class="forest-canopy">
+                    <input type="text" id="search-input" placeholder="魔法の言葉を探す...">
+                    <select id="sort-select">
+                        <option value="stars">星の数順</option>
+                        <option value="name">名前順</option>
+                    </select>
+                </div>
+                <ul id="prompts" class="scroll-parchment"></ul>
+            </section>
+            <section class="wizard-sanctum">
+                <h2>新しい魔法を紡ぐ</h2>
+                <form id="prompt-form">
+                    <input type="text" id="prompt-title" required placeholder="魔法の名前">
+                    <textarea id="prompt-text" required placeholder="魔法の言葉"></textarea>
+                    <input type="text" id="prompt-genre" list="genres" required placeholder="魔法の種類">
+                    <datalist id="genres"></datalist>
+                    <div class="star-rating">
+                        <input type="radio" id="star5" name="rating" value="5" /><label for="star5"></label>
+                        <input type="radio" id="star4" name="rating" value="4" /><label for="star4"></label>
+                        <input type="radio" id="star3" name="rating" value="3" /><label for="star3"></label>
+                        <input type="radio" id="star2" name="rating" value="2" /><label for="star2"></label>
+                        <input type="radio" id="star1" name="rating" value="1" /><label for="star1"></label>
+                    </div>
+                    <button type="submit" class="crystal-btn">魔法を紡ぐ</button>
+                </form>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

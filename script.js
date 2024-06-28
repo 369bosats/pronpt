@@ -2,19 +2,178 @@ let prompts = [];
 let genres = new Set();
 let userLevel = 1;
 let userExp = 0;
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
+
+const CLIENT_ID = '964550014468-d7hrng7mrs2bf3mcqmb9n3c0nuj8emkh.apps.googleusercontent.com';
+const API_KEY = 'AIzaSyBGmQ9uxJFMV2euyZzdOy4VbFZwfmrD41g';
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadPrompts();
-    loadGenres();
-    loadUserProgress();
+    initializeApp();
     document.getElementById('prompt-form').addEventListener('submit', addPrompt);
     document.getElementById('search-input').addEventListener('input', filterPrompts);
     document.getElementById('sort-select').addEventListener('change', sortPrompts);
     document.getElementById('add-genre').addEventListener('click', addGenre);
-    displayPrompts();
-    updateGenreList();
-    updateUserLevel();
+    document.getElementById('authorize_button').addEventListener('click', handleAuthClick);
+    document.getElementById('signout_button').addEventListener('click', handleSignoutClick);
 });
+
+function initializeApp() {
+    const token = localStorage.getItem('gapi_access_token');
+    if (token) {
+        gapi.client.setToken({ access_token: token });
+        loadPromptsFromDrive();
+    } else {
+        loadPrompts();
+        loadGenres();
+        loadUserProgress();
+        displayPrompts();
+        updateGenreList();
+        updateUserLevel();
+        document.getElementById('authorize_button').style.display = 'block';
+    }
+}
+
+function gapiLoaded() {
+    gapi.load('client', initializeGapiClient);
+}
+
+async function initializeGapiClient() {
+    await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+    });
+    gapiInited = true;
+    maybeEnableButtons();
+}
+
+function gisLoaded() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // defined later
+    });
+    gisInited = true;
+    maybeEnableButtons();
+}
+
+function maybeEnableButtons() {
+    if (gapiInited && gisInited) {
+        document.getElementById('authorize_button').style.display = 'block';
+    }
+}
+
+function handleAuthClick() {
+    tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) {
+            throw (resp);
+        }
+        localStorage.setItem('gapi_access_token', resp.access_token);
+        document.getElementById('signout_button').style.display = 'block';
+        document.getElementById('authorize_button').style.display = 'none';
+        await loadPromptsFromDrive();
+    };
+
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    } else {
+        tokenClient.requestAccessToken({prompt: ''});
+    }
+}
+
+function handleSignoutClick() {
+    const token = gapi.client.getToken();
+    if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        localStorage.removeItem('gapi_access_token');
+        document.getElementById('authorize_button').style.display = 'block';
+        document.getElementById('signout_button').style.display = 'none';
+    }
+}
+
+async function loadPromptsFromDrive() {
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: "name='prompts.json'",
+            fields: 'files(id, name)',
+        });
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            const fileId = files[0].id;
+            const file = await gapi.client.drive.files.get({
+                fileId: fileId,
+                alt: 'media',
+            });
+            const data = JSON.parse(file.body);
+            prompts = data.prompts;
+            genres = new Set(data.genres);
+            userLevel = data.userLevel;
+            userExp = data.userExp;
+            displayPrompts();
+            updateGenreList();
+            updateUserLevel();
+        } else {
+            console.log('No files found.');
+            loadPrompts();
+            loadGenres();
+            loadUserProgress();
+        }
+    } catch (err) {
+        console.error('Error loading prompts from Drive:', err);
+        loadPrompts();
+        loadGenres();
+        loadUserProgress();
+    }
+}
+
+async function savePromptsToDrive() {
+    const fileContent = JSON.stringify({
+        prompts: prompts,
+        genres: Array.from(genres),
+        userLevel: userLevel,
+        userExp: userExp
+    });
+    const file = new Blob([fileContent], {type: 'application/json'});
+    const metadata = {
+        'name': 'prompts.json',
+        'mimeType': 'application/json',
+    };
+
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: "name='prompts.json'",
+            fields: 'files(id, name)',
+        });
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            // Update existing file
+            await gapi.client.request({
+                path: '/upload/drive/v3/files/' + files[0].id,
+                method: 'PATCH',
+                params: {uploadType: 'media'},
+                body: file,
+            });
+        } else {
+            // Create new file
+            await gapi.client.drive.files.create({
+                resource: metadata,
+                media: {
+                    mimeType: 'application/json',
+                    body: file,
+                },
+                fields: 'id',
+            });
+        }
+    } catch (err) {
+        console.error('Error saving prompts to Drive:', err);
+    }
+}
+
+
 
 function addPrompt(e) {
     e.preventDefault();
@@ -36,6 +195,7 @@ function addPrompt(e) {
     addExp(rating * 10);
     
     e.target.reset();
+    savePromptsToDrive();
 }
 
 function displayPrompts(filteredPrompts = prompts) {
@@ -85,6 +245,7 @@ function editPrompt(index) {
         displayPrompts();
         updateGenreList();
     }
+    savePromptsToDrive();
 }
 
 function deletePrompt(index) {
@@ -94,6 +255,7 @@ function deletePrompt(index) {
         displayPrompts();
         updateGenreList();
     }
+    savePromptsToDrive();
 }
 
 function filterPrompts() {
@@ -156,6 +318,7 @@ function addGenre() {
         updateGenreList();
         document.getElementById('new-genre').value = '';
     }
+    savePromptsToDrive();
 }
 
 function deleteGenre(genre) {
@@ -167,6 +330,7 @@ function deleteGenre(genre) {
         displayPrompts();
         updateGenreList();
     }
+    savePromptsToDrive();
 }
 
 function addExp(exp) {
@@ -181,6 +345,7 @@ function addExp(exp) {
     
     updateUserLevel();
     saveUserProgress();
+    savePromptsToDrive();
 }
 
 function updateUserLevel() {

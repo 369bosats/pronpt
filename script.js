@@ -37,6 +37,129 @@ function initializeApp() {
     }
 }
 
+async function loadPromptsFromDrive() {
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: "name='prompts.json'",
+            fields: 'files(id, name)',
+        });
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            const fileId = files[0].id;
+            const file = await gapi.client.drive.files.get({
+                fileId: fileId,
+                alt: 'media',
+            });
+            const data = JSON.parse(file.body);
+            prompts = data.prompts;
+            genres = new Set(data.genres);
+            userLevel = data.userLevel;
+            userExp = data.userExp;
+            displayPrompts();
+            updateGenreList();
+            updateUserLevel();
+        } else {
+            console.log('No files found.');
+            loadPrompts();
+            loadGenres();
+            loadUserProgress();
+        }
+    } catch (err) {
+        console.error('Error loading prompts from Drive:', err);
+        loadPrompts();
+        loadGenres();
+        loadUserProgress();
+    }
+}
+
+async function savePromptsToDrive() {
+    const fileContent = JSON.stringify({
+        prompts: prompts,
+        genres: Array.from(genres),
+        userLevel: userLevel,
+        userExp: userExp
+    });
+    const file = new Blob([fileContent], {type: 'application/json'});
+    const metadata = {
+        'name': 'prompts.json',
+        'mimeType': 'application/json',
+    };
+
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: "name='prompts.json'",
+            fields: 'files(id, name)',
+        });
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            // Update existing file
+            await gapi.client.request({
+                path: '/upload/drive/v3/files/' + files[0].id,
+                method: 'PATCH',
+                params: {uploadType: 'media'},
+                body: file,
+            });
+        } else {
+            // Create new file
+            await gapi.client.drive.files.create({
+                resource: metadata,
+                media: {
+                    mimeType: 'application/json',
+                    body: file,
+                },
+                fields: 'id',
+            });
+        }
+    } catch (err) {
+        console.error('Error saving prompts to Drive:', err);
+    }
+}
+
+function handleAuthClick() {
+    tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) {
+            throw (resp);
+        }
+        localStorage.setItem('gapi_access_token', resp.access_token);
+        document.getElementById('signout_button').style.display = 'block';
+        document.getElementById('authorize_button').style.display = 'none';
+        await loadPromptsFromDrive();
+    };
+
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    } else {
+        tokenClient.requestAccessToken({prompt: ''});
+    }
+}
+
+function handleSignoutClick() {
+    const token = gapi.client.getToken();
+    if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        localStorage.removeItem('gapi_access_token');
+        document.getElementById('authorize_button').style.display = 'block';
+        document.getElementById('signout_button').style.display = 'none';
+    }
+}
+
+function initializeApp() {
+    const token = localStorage.getItem('gapi_access_token');
+    if (token) {
+        gapi.client.setToken({ access_token: token });
+        loadPromptsFromDrive();
+    } else {
+        loadPrompts();
+        loadGenres();
+        loadUserProgress();
+        displayPrompts();
+        updateGenreList();
+        updateUserLevel();
+        document.getElementById('authorize_button').style.display = 'block';
+    }
+}
+
 function gapiLoaded() {
     gapi.load('client', initializeGapiClient);
 }

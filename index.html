@@ -6,6 +6,9 @@
     <title>Enchanted Realm of Prompts</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <!-- Google API スクリプト -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
     <div class="enchanted-realm">
@@ -15,6 +18,9 @@
                 <span class="level">レベル 1</span>
                 <div class="exp-bar"><div class="exp-fill"></div></div>
             </div>
+            <!-- Google Drive 連携ボタン -->
+            <button id="authorize_button" style="display: none;">Google Driveと連携</button>
+            <button id="signout_button" style="display: none;">連携解除</button>
         </header>
         <main class="realm-content">
             <aside class="magic-tower">
@@ -53,5 +59,23 @@
         </main>
     </div>
     <script src="script.js"></script>
+    <script>
+        // Google API 初期化コード
+        function gapiLoaded() {
+            gapi.load('client', initializeGapiClient);
+        }
+
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // defined later
+            });
+            gisInited = true;
+            maybeEnableButtons();
+        }
+    </script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
